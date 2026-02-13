@@ -10,17 +10,23 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 #-----------------------
-# Fetch code_gen Repo
+# Build generator from code_gen Repo
 #-----------------------
-include(FetchContent)
-
-FetchContent_Declare(
+include(ExternalProject)
+include(ProcessorCount)
+ExternalProject_Add(
     generator_project
     GIT_REPOSITORY https://github.com/sodabae/code_gen.git
     GIT_TAG master
+    PREFIX ${CMAKE_BINARY_DIR}/generator_project
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
+    BUILD_COMMAND ${CMAKE_COMMAND} --build <BINARY_DIR> -- -j${PocessorCount}
+    INSTALL_COMMAND ""   #Don't do an install of this
+    LOG_DOWNLOAD ON
+    LOG_BUILD ON
 )
-
-FetchContent_MakeAvailable(generator_project)
+#path to generator executable after build
+set(GENERATOR_EXE ${CMAKE_BINARY_DIR}/generator_project/src/generator_project-build/generator)
 
 #-----------------------
 # Create the Generated file (print.cpp)
@@ -38,11 +44,12 @@ set(PRINT_TYPE 1 CACHE STRING "Type passed to generator")
 #Note: "generator" must be the add_executable target in the code_gen repo CMakeLists.txt
 add_custom_command(
     OUTPUT ${GENERATED_FILE}
-    COMMAND generator
+    COMMAND ${GENERATOR_EXE}
         --type=${PRINT_TYPE}
         --path=${GENERATED_DIR}
         --file=${FILE_NAME}
-    DEPENDS generator
+    DEPENDS ${GENERATOR_EXE}
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     COMMENT "Running external generator to create print.cpp"
     VERBATIM
 )
@@ -50,7 +57,7 @@ add_custom_command(
 #-----------------------
 # Build main app
 #-----------------------
-add_custom_target(generate_print DEPENDS ${GENERATED_FILE})
+add_custom_target(generate_print ALL DEPENDS ${GENERATED_FILE})
 
 add_executable(print_app
     src/main.cpp
