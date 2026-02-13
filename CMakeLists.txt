@@ -13,20 +13,16 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Build generator from code_gen Repo
 #-----------------------
 include(ExternalProject)
-include(ProcessorCount)
 ExternalProject_Add(
     generator_project
     GIT_REPOSITORY https://github.com/sodabae/code_gen.git
     GIT_TAG master
     PREFIX ${CMAKE_BINARY_DIR}/generator_project
-    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
-    BUILD_COMMAND ${CMAKE_COMMAND} --build <BINARY_DIR> -- -j${PocessorCount}
+    BINARY_DIR ${CMAKE_BINARY_DIR}/code_gen
     INSTALL_COMMAND ""   #Don't do an install of this
-    LOG_DOWNLOAD ON
-    LOG_BUILD ON
 )
 #path to generator executable after build
-set(GENERATOR_EXE ${CMAKE_BINARY_DIR}/generator_project/src/generator_project-build/generator)
+set(GENERATOR_EXE ${CMAKE_BINARY_DIR}/code_gen/generator)
 
 #-----------------------
 # Create the Generated file (print.cpp)
@@ -49,7 +45,6 @@ add_custom_command(
         --path=${GENERATED_DIR}
         --file=${FILE_NAME}
     DEPENDS ${GENERATOR_EXE}
-    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     COMMENT "Running external generator to create print.cpp"
     VERBATIM
 )
