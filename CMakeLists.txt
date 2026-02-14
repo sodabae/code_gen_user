@@ -11,25 +11,60 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 #-----------------------
 # Build generator from code_gen Repo
+#  In the CMake config phase, need to 
+#  1. clone
+#  2. config
+#  3. build
+#  4. generate source
 #-----------------------
-include(ExternalProject)
-ExternalProject_Add(
-    generator_project
-    GIT_REPOSITORY https://github.com/sodabae/code_gen.git
-    GIT_TAG master
-    PREFIX ${CMAKE_BINARY_DIR}/generator_project
-    BINARY_DIR ${CMAKE_BINARY_DIR}/code_gen
-    INSTALL_COMMAND ""   #Don't do an install of this
-)
-#path to generator executable after build
-set(GENERATOR_EXE ${CMAKE_BINARY_DIR}/code_gen/generator)
+set(GENERATOR_DIR ${CMAKE_BINARY_DIR}/generator_project)
 
-#-----------------------
-# Create the Generated file (print.cpp)
-#-----------------------
+# Clone repo if it doesn't exist
+if(NOT EXISTS ${GENERATOR_DIR}/CMakeLists.txt)
+    message(STATUS "Cloning generator repo...")
+    execute_process(
+        COMMAND git clone https://github.com/sodabae/code_gen.git ${GENERATOR_DIR}
+        RESULT_VARIABLE GIT_CLONE_RESULT
+    )
+    if(NOT GIT_CLONE_RESULT EQUAL 0)
+        message(FATAL_ERROR "Failed to clone generator repo")
+    endif()
+endif()
+
+
+
+#path to generator executable after build
+set(GENERATOR_EXE ${GENERATOR_DIR}/build/generator)
+
+#...................................
+# 2. config
+
+execute_process(
+    COMMAND ${CMAKE_COMMAND} -S ${GENERATOR_DIR} -B ${GENERATOR_DIR}/build
+    RESULT_VARIABLE config_result
+)
+
+if(NOT config_result EQUAL 0)
+    message(FATAL_ERROR "Failed to config the generator")
+endif()
+
+#...................................
+# 3. build
+
+execute_process(
+    COMMAND ${CMAKE_COMMAND} --build ${GENERATOR_DIR}/build
+    RESULT_VARIABLE build_result
+)
+
+if(NOT build_result EQUAL 0)
+    message(FATAL_ERROR "Failed to build the generator")
+endif()
+
+#...................................
+# 4. generate source code
 
 set(FILE_NAME print.cpp)
-set(GENERATED_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
+set(GENERATED_DIR ${CMAKE_BINARY_DIR}/generated)
 set(GENERATED_FILE ${GENERATED_DIR}/${FILE_NAME})
 
 file(MAKE_DIRECTORY ${GENERATED_DIR})
@@ -37,29 +72,30 @@ file(MAKE_DIRECTORY ${GENERATED_DIR})
 #Allow the user to configure the type
 set(PRINT_TYPE 1 CACHE STRING "Type passed to generator")
 
-#Note: "generator" must be the add_executable target in the code_gen repo CMakeLists.txt
-add_custom_command(
-    OUTPUT ${GENERATED_FILE}
+execute_process (
     COMMAND ${GENERATOR_EXE}
         --type=${PRINT_TYPE}
         --path=${GENERATED_DIR}
         --file=${FILE_NAME}
-    DEPENDS ${GENERATOR_EXE}
-    COMMENT "Running external generator to create print.cpp"
-    VERBATIM
+    RESULT_VARIABLE gen_result
 )
+
+if (NOT gen_result EQUAL 0)
+    message(FATAL_ERROR "Unable to generate src files")
+endif()
+
 
 #-----------------------
 # Build main app
 #-----------------------
-add_custom_target(generate_print ALL DEPENDS ${GENERATED_FILE})
 
+file(GLOB SRC_FILES
+     "${GENERATED_DIR}/*.cpp"
+     )
 add_executable(print_app
     src/main.cpp
-    ${GENERATED_FILE}
+    ${SRC_FILES}
 )
-
-add_dependencies(print_app generate_print)
 
 target_include_directories(print_app
     PRIVATE
